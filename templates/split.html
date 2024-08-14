@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Split Receipt</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <receipt-split :receipt-id="'{{ receipt_id }}'"></receipt-split>
+    </div>
+
+    <script>
+        const ReceiptSplit = {
+            props: ['receiptId'],
+            data() {
+                return {
+                    receipt: null,
+                    userName: '',
+                    userSelections: {},
+                    isNameSubmitted: false
+                }
+            },
+            methods: {
+                async fetchReceipt() {
+                    try {
+                        const response = await axios.get(`/api/receipt/${this.receiptId}`)
+                        this.receipt = response.data
+                        // Initialize userSelections if it's empty
+                        if (Object.keys(this.userSelections).length === 0) {
+                            this.receipt.items.forEach((item, index) => {
+                                this.userSelections[index] = false
+                            })
+                        }
+                    } catch (error) {
+                        console.error('Error fetching receipt:', error)
+                    }
+                },
+                submitName() {
+                    if (this.userName.trim()) {
+                        this.isNameSubmitted = true
+                        this.fetchReceipt()
+                    }
+                },
+                toggleSelection(index) {
+                    this.userSelections[index] = !this.userSelections[index]
+                },
+                async submitSelections() {
+                    try {
+                        await axios.post(`/api/receipt/${this.receiptId}`, {
+                            user: this.userName,
+                            selections: this.userSelections
+                        })
+                        this.fetchReceipt()
+                    } catch (error) {
+                        console.error('Error submitting selections:', error)
+                    }
+                }
+            },
+            mounted() {
+                // Remove the initial fetchReceipt call
+                setInterval(this.fetchReceipt, 5000) // Fetch updates every 5 seconds
+            },
+            template: {% raw %}`
+                <div v-if="!isNameSubmitted">
+                    <h2>Enter your name:</h2>
+                    <input v-model="userName" @keyup.enter="submitName">
+                    <button @click="submitName">Submit</button>
+                </div>
+                <div v-else-if="receipt">
+                    <h2>Your Name: {{ userName }}</h2>
+                    <h2>Receipt Items</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Select</th>
+                                <th>Item</th>
+                                <th>Price</th>
+                                <th>Selected By</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="(item, index) in receipt.items" :key="index">
+                                <td><input type="checkbox" :checked="userSelections[index]" @change="toggleSelection(index)"></td>
+                                <td>{{ item.name }}</td>
+                                <td>{{ item.price }}</td>
+                                <td>{{ receipt.selections[index] ? receipt.selections[index].join(', ') : '' }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <button @click="submitSelections">Submit Selections</button>
+                </div>
+                <div v-else>
+                    <p>Loading receipt data...</p>
+                </div>
+            `{% endraw %}
+        }
+
+        Vue.createApp({
+            components: {
+                ReceiptSplit
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>
