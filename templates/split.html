@@ -12,6 +12,11 @@
         <receipt-split :receipt-id="'{{ receipt_id }}'"></receipt-split>
     </div>
 
+    <div id="calculation-section">
+        <button id="calculate-button">Calculate Amounts Owed</button>
+        <div id="results"></div>
+    </div>
+
     <script>
         const ReceiptSplit = {
             props: ['receiptId'],
@@ -57,7 +62,29 @@
                     } catch (error) {
                         console.error('Error submitting selections:', error)
                     }
-                }
+                },
+                // calculateAmountsOwed() {
+                //     const amountsOwed = {};
+                //     this.receipt.items.forEach((item, index) => {
+                //         const price = parseFloat(item.price.replace('$', ''));
+                //         const selectedBy = this.receipt.selections[index] || [];
+                //         const splitAmount = price / selectedBy.length;
+                        
+                //         selectedBy.forEach(user => {
+                //             if (!amountsOwed[user]) {
+                //                 amountsOwed[user] = 0;
+                //             }
+                //             amountsOwed[user] += splitAmount;
+                //         });
+                //     });
+
+                //     // Round to two decimal places
+                //     for (let user in amountsOwed) {
+                //         amountsOwed[user] = amountsOwed[user].toFixed(2);
+                //     }
+
+                //     this.amountsOwed = amountsOwed;
+                // }
             },
             mounted() {
                 // Remove the initial fetchReceipt call
@@ -103,6 +130,56 @@
                 ReceiptSplit
             }
         }).mount('#app')
+
+        // Add this new script for the calculation functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const calculateButton = document.getElementById('calculate-button');
+            const resultsDiv = document.getElementById('results');
+
+            calculateButton.addEventListener('click', async function() {
+                try {
+                    const response = await axios.get('/api/receipt/{{ receipt_id }}');
+                    const receipt = response.data;
+                    const amountsOwed = calculateAmountsOwed(receipt);
+                    displayResults(amountsOwed);
+                } catch (error) {
+                    console.error('Error calculating amounts:', error);
+                    resultsDiv.innerHTML = '<p>Error calculating amounts. Please try again.</p>';
+                }
+            });
+
+            function calculateAmountsOwed(receipt) {
+                const amountsOwed = {};
+                receipt.items.forEach((item, index) => {
+                    const price = parseFloat(item.price.replace('$', ''));
+                    const selectedBy = receipt.selections[index] || [];
+                    const splitAmount = price / selectedBy.length;
+                    
+                    selectedBy.forEach(user => {
+                        if (!amountsOwed[user]) {
+                            amountsOwed[user] = 0;
+                        }
+                        amountsOwed[user] += splitAmount;
+                    });
+                });
+
+                // Round to two decimal places
+                for (let user in amountsOwed) {
+                    amountsOwed[user] = amountsOwed[user].toFixed(2);
+                }
+
+                return amountsOwed;
+            }
+
+            function displayResults(amountsOwed) {
+                let html = '<h3>Amounts Owed:</h3><ul>';
+                for (const [user, amount] of Object.entries(amountsOwed)) {
+                    html += `<li>${user}: $${amount}</li>`;
+                }
+                html += '</ul>';
+                resultsDiv.innerHTML = html;
+            }
+        });
     </script>
 </body>
 </html>
