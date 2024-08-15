@@ -129,10 +129,10 @@ def allowed_file(filename):
 def upload_file():
     if request.method == 'POST':
         if 'file' not in request.files:
-            return render_template('index.html', message='No file part')
+            return jsonify({'error': 'No file part'}), 400
         file = request.files['file']
         if file.filename == '':
-            return render_template('index.html', message='No selected file')
+            return jsonify({'error': 'No selected file'}), 400
         if file and allowed_file(file.filename):
             os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
@@ -164,9 +164,11 @@ def upload_file():
                 print("Error decoding JSON from Gemini AI response")
                 session['ocr_results'] = []
 
-            return redirect(url_for('ocr_result'))
+            # Return JSON response with redirect URL
+            return jsonify({'redirect': url_for('ocr_result')})
         else:
-            return render_template('index.html', message='Invalid file type')
+            return jsonify({'error': 'Invalid file type'}), 400
+    # For GET requests, render the upload form
     return render_template('index.html')
 
 @app.route('/ocr_result')
