@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Split Receipt</title>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <style>
         table {
@@ -54,7 +54,7 @@
                                 class="quantity-input" 
                                 v-model.number="userSelections[index]" 
                                 min="0"
-                                @input="updateSelection(index)"
+                                @input="updateSelection(index, $event.target.value)"
                             >
                         </td>
                         <td>[[ getSelectedBy(index) ]]</td>
@@ -87,7 +87,7 @@
                     receipt: null,
                     userSelections: {},
                     amountsOwed: null,
-                    isSubmitting: false, // New data property to track submission state
+                    isSubmitting: false
                 }
             },
             methods: {
@@ -106,19 +106,23 @@
                         console.timeEnd('fetchReceipt');
                         console.log('Receipt data:', response.data);
                         this.receipt = response.data;
+                        this.$nextTick(() => {
+                            console.log('Receipt updated in next tick:', this.receipt);
+                        });
                     } catch (error) {
                         console.error('Error fetching receipt:', error);
                     }
                 },
-                updateSelection(index) {
-                    console.log(`updateSelection called for index ${index}`);
-                    if (this.userSelections[index] < 0) {
-                        this.userSelections[index] = 0;
-                    }
+                updateSelection(index, value) {
+                    console.log(`updateSelection called for index ${index} with value ${value}`);
+                    this.userSelections[index] = Math.max(0, parseInt(value) || 0);
                     console.log('Updated selections:', this.userSelections);
                 },
                 getSelectedBy(index) {
+                    console.log('getSelectedBy called for index:', index);
+                    console.log('Current selections:', this.receipt.selections);
                     const selections = this.receipt.selections[index] || {};
+                    console.log('Selections for this item:', selections);
                     return Object.entries(selections)
                         .map(([user, quantity]) => `${user} (${quantity})`)
                         .join(', ');
@@ -155,6 +159,14 @@
                         this.amountsOwed = response.data;
                     } catch (error) {
                         console.error('Error calculating amounts:', error);
+                    }
+                }
+            },
+            watch: {
+                receipt: {
+                    deep: true,
+                    handler(newReceipt) {
+                        console.log('Receipt changed:', newReceipt);
                     }
                 }
             },

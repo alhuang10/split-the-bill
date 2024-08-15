@@ -1,26 +1,25 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, session
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session, g
 from flask_restful import Api, Resource
+import sqlite3
 import os
-
-app = Flask(__name__)
-
 import uuid
 import json
 import google.generativeai as genai
-
 from IPython.display import Image
 import logging
 
+app = Flask(__name__)
+api = Api(app)
+
 logging.basicConfig(filename='flaskapp.log', level=logging.DEBUG)
 
-app.secret_key = os.urandom(24)  # Add this line to enable session usage
+app.secret_key = os.urandom(24)
 
 assert os.environ['GEMINI_API_KEY'], "API KEY NOT SET"
 genai.configure(api_key=os.environ['GEMINI_API_KEY'])
 
 _MODEL = genai.GenerativeModel(
     model_name="gemini-1.5-flash",
-    # model_name="gemini-1.5-pro",
     generation_config={"response_mime_type": "application/json"})
 
 _PROMPT = """
@@ -28,60 +27,103 @@ _PROMPT = """
         [{"count": int, "name": str, "total_price": float}]
 """
 
-api = Api(app)
-
 app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
+app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg'}
 
-# In-memory store for simplicity. Replace with a database in production.
-receipts = {}
+basedir = os.path.abspath(os.path.dirname(__file__))
+DATABASE = os.path.join(basedir, 'receipts.db')
+
+os.makedirs(os.path.dirname(DATABASE), exist_ok=True)
+
+def get_db():
+    db = getattr(g, '_database', None)
+    if db is None:
+        db = g._database = sqlite3.connect(DATABASE)
+        db.row_factory = sqlite3.Row
+    return db
+
+@app.teardown_appcontext
+def close_connection(exception):
+    db = getattr(g, '_database', None)
+    if db is not None:
+        db.close()
+
+def init_db():
+    with app.app_context():
+        db = get_db()
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS receipts
+            (id TEXT PRIMARY KEY, items TEXT, selections TEXT)
+        ''')
+        db.commit()
+
+init_db()
 
 class ReceiptResource(Resource):
     def get(self, receipt_id):
-        return jsonify(receipts.get(receipt_id, {}))
+        db = get_db()
+        receipt = db.execute('SELECT * FROM receipts WHERE id = ?', (receipt_id,)).fetchone()
+        if receipt:
+            data = {
+                'items': json.loads(receipt['items']),
+                'selections': json.loads(receipt['selections'])
+            }
+            print("Receipt data being sent:", data)  # Add this line
+            return data
+        return {'error': 'Receipt not found'}, 404
 
     def post(self, receipt_id):
-        if receipt_id not in receipts:
-            return {'error': 'Receipt not found'}, 404
-        user = request.json['user']
-        selections = request.json['selections']
-        for index, quantity in selections.items():
-            index = int(index)
-            if index not in receipts[receipt_id]['selections']:
-                receipts[receipt_id]['selections'][index] = {}
-            receipts[receipt_id]['selections'][index][user] = quantity
+        db = get_db()
+        data = request.json
+        print("Received data:", data)  # Add this line
+        receipt = db.execute('SELECT * FROM receipts WHERE id = ?', (receipt_id,)).fetchone()
+        if receipt:
+            current_selections = json.loads(receipt['selections'])
+            print("Current selections:", current_selections)  # Add this line
+            for index, quantity in data['selections'].items():
+                if index not in current_selections:
+                    current_selections[index] = {}
+                current_selections[index][data['user']] = quantity
+            print("Updated selections:", current_selections)  # Add this line
+            db.execute('UPDATE receipts SET selections = ? WHERE id = ?',
+                    (json.dumps(current_selections), receipt_id))
+        else:
+            db.execute('INSERT INTO receipts (id, items, selections) VALUES (?, ?, ?)',
+                    (receipt_id, json.dumps([]), json.dumps(data['selections'])))
+        db.commit()
         return {'status': 'updated'}, 200
 
 api.add_resource(ReceiptResource, '/api/receipt/<string:receipt_id>')
 
 @app.route('/api/calculate/<string:receipt_id>')
 def calculate_amounts(receipt_id):
-    if receipt_id not in receipts:
+    db = get_db()
+    receipt = db.execute('SELECT * FROM receipts WHERE id = ?', (receipt_id,)).fetchone()
+    if not receipt:
         return jsonify({'error': 'Receipt not found'}), 404
     
-    receipt = receipts[receipt_id]
+    items = json.loads(receipt['items'])
+    selections = json.loads(receipt['selections'])
     amounts_owed = {}
 
-    for index, item in enumerate(receipt['items']):
+    for index, item in enumerate(items):
         price = float(item['total_price'])
-        selections = receipt['selections'].get(index, {})
-        total_quantity = sum(selections.values())
+        item_selections = selections.get(str(index), {})
+        total_quantity = sum(int(qty) for qty in item_selections.values())
         
         if total_quantity > 0:
             price_per_unit = price / total_quantity
-            for user, quantity in selections.items():
+            for user, quantity in item_selections.items():
                 if user not in amounts_owed:
                     amounts_owed[user] = 0
-                amounts_owed[user] += price_per_unit * quantity
+                amounts_owed[user] += price_per_unit * int(quantity)
 
-    # Round to two decimal places
     amounts_owed = {user: round(amount, 2) for user, amount in amounts_owed.items()}
 
     return jsonify(amounts_owed)
 
 def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
@@ -117,7 +159,7 @@ def upload_file():
                 for result in response_json:
                     result['name'] = f"{result['count']} {result['name']}"
 
-                session['ocr_results'] = response_json  # Store results in session
+                session['ocr_results'] = response_json
             except json.JSONDecodeError:
                 print("Error decoding JSON from Gemini AI response")
                 session['ocr_results'] = []
@@ -137,15 +179,17 @@ def ocr_result():
 def finalize_receipt():
     items = request.json['items']
     receipt_id = str(uuid.uuid4())
-    receipts[receipt_id] = {
-        'items': items,
-        'selections': {}
-    }
+    db = get_db()
+    db.execute('INSERT INTO receipts (id, items, selections) VALUES (?, ?, ?)',
+               (receipt_id, json.dumps(items), json.dumps({})))
+    db.commit()
     return jsonify({'link': f'/split/{receipt_id}'})
 
 @app.route('/split/<receipt_id>')
 def split_receipt(receipt_id):
-    if receipt_id not in receipts:
+    db = get_db()
+    receipt = db.execute('SELECT * FROM receipts WHERE id = ?', (receipt_id,)).fetchone()
+    if not receipt:
         return "Receipt not found", 404
     return render_template('split.html', receipt_id=receipt_id)
 
