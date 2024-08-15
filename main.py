@@ -1,5 +1,9 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session
 from flask_restful import Api, Resource
+
+app = Flask(__name__)
+app.secret_key = os.urandom(24)  # Add this line to enable session usage
+
 import uuid
 import os
 import json
@@ -20,8 +24,6 @@ _PROMPT = """
         [{"count": int, "name": str, "total_price": float}]
 """
 
-app = Flask(__name__)
-app.secret_key = os.urandom(24)  # Add this line to enable session usage
 api = Api(app)
 
 app.config['UPLOAD_FOLDER'] = 'uploads'
