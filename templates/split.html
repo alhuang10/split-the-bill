@@ -61,7 +61,8 @@
                 calculateAmountsOwed() {
                     const amountsOwed = {};
                     this.receipt.items.forEach((item, index) => {
-                        const price = parseFloat(item.price.replace('$', ''));
+                        // const price = parseFloat(item.price.replace('$', ''));
+                        const price = parseFloat(item.total_price);
                         const selectedBy = this.receipt.selections[index] || [];
                         const splitAmount = price / selectedBy.length;
 
@@ -109,14 +110,14 @@
                                 <th>Select</th>
                                 <th>Item</th>
                                 <th>Price</th>
-                                <th>Selected By</th>
+                                <th>Split Between</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr v-for="(item, index) in receipt.items" :key="index">
                                 <td><input type="checkbox" :checked="userSelections[index]" @change="toggleSelection(index)"></td>
                                 <td>{{ item.name }}</td>
-                                <td>{{ item.price }}</td>
+                                <td>{{ item.total_price }}</td>
                                 <td>{{ receipt.selections[index] ? receipt.selections[index].join(', ') : '' }}</td>
                             </tr>
                         </tbody>

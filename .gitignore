@@ -1,3 +1,7 @@
 .venv/
 uploads/
 *.HEIC
+*.png
+*.jpg
+*.jpeg
+*.ipynb
