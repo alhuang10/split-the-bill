@@ -1,15 +1,19 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session
 from flask_restful import Api, Resource
+import os
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)  # Add this line to enable session usage
 
 import uuid
-import os
 import json
 import google.generativeai as genai
 
 from IPython.display import Image
+import logging
+
+logging.basicConfig(filename='flaskapp.log', level=logging.DEBUG)
+
+app.secret_key = os.urandom(24)  # Add this line to enable session usage
 
 assert os.environ['GEMINI_API_KEY'], "API KEY NOT SET"
 genai.configure(api_key=os.environ['GEMINI_API_KEY'])
@@ -88,6 +92,8 @@ def upload_file():
         if file.filename == '':
             return render_template('index.html', message='No selected file')
         if file and allowed_file(file.filename):
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
             extension = file.filename.split(".")[-1]
             filename = f"{str(uuid.uuid4())}.{extension}"
             
