@@ -39,12 +39,39 @@ class ReceiptResource(Resource):
             return {'error': 'Receipt not found'}, 404
         user = request.json['user']
         selections = request.json['selections']
-        for index, selected in selections.items():
-            if selected:
-                receipts[receipt_id]['selections'].setdefault(int(index), []).append(user)
+        for index, quantity in selections.items():
+            index = int(index)
+            if index not in receipts[receipt_id]['selections']:
+                receipts[receipt_id]['selections'][index] = {}
+            receipts[receipt_id]['selections'][index][user] = quantity
         return {'status': 'updated'}, 200
 
 api.add_resource(ReceiptResource, '/api/receipt/<string:receipt_id>')
+
+@app.route('/api/calculate/<string:receipt_id>')
+def calculate_amounts(receipt_id):
+    if receipt_id not in receipts:
+        return jsonify({'error': 'Receipt not found'}), 404
+    
+    receipt = receipts[receipt_id]
+    amounts_owed = {}
+
+    for index, item in enumerate(receipt['items']):
+        price = float(item['total_price'])
+        selections = receipt['selections'].get(index, {})
+        total_quantity = sum(selections.values())
+        
+        if total_quantity > 0:
+            price_per_unit = price / total_quantity
+            for user, quantity in selections.items():
+                if user not in amounts_owed:
+                    amounts_owed[user] = 0
+                amounts_owed[user] += price_per_unit * quantity
+
+    # Round to two decimal places
+    amounts_owed = {user: round(amount, 2) for user, amount in amounts_owed.items()}
+
+    return jsonify(amounts_owed)
 
 def allowed_file(filename):
     return '.' in filename and \

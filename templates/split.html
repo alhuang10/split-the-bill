@@ -4,139 +4,149 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Split Receipt</title>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .quantity-input {
+            width: 50px;
+        }
+    </style>
 </head>
 <body>
     <div id="app">
-        <receipt-split :receipt-id="'{{ receipt_id }}'"></receipt-split>
+        <h1>Split Receipt</h1>
+        <div v-if="!isNameSubmitted">
+            <h2>Enter your name:</h2>
+            <input v-model="userName" @keyup.enter="submitName">
+            <button @click="submitName">Submit</button>
+        </div>
+        <div v-else>
+            <h2>Welcome, [[ userName ]]</h2>
+            <table v-if="receipt">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Price</th>
+                        <th>Your Quantity</th>
+                        <th>Selected By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="(item, index) in receipt.items" :key="index">
+                        <td>[[ item.name ]]</td>
+                        <td>[[ item.total_price ]]</td>
+                        <td>
+                            <input 
+                                type="number" 
+                                class="quantity-input" 
+                                v-model.number="userSelections[index]" 
+                                min="0"
+                                @input="updateSelection(index)"
+                            >
+                        </td>
+                        <td>[[ getSelectedBy(index) ]]</td>
+                    </tr>
+                </tbody>
+            </table>
+            <button @click="submitSelections">Submit Selections</button>
+            <button @click="calculateAmountsOwed">Calculate Amounts Owed</button>
+            <div v-if="amountsOwed">
+                <h3>Amounts Owed:</h3>
+                <ul>
+                    <li v-for="(amount, user) in amountsOwed" :key="user">
+                        [[ user ]]: $[[ amount ]]
+                    </li>
+                </ul>
+            </div>
+        </div>
     </div>
 
     <script>
-        const ReceiptSplit = {
-            props: ['receiptId'],
+        const { createApp } = Vue
+
+        createApp({
+            delimiters: ['[[', ']]'],
             data() {
                 return {
-                    receipt: null,
+                    receiptId: '{{ receipt_id }}',
                     userName: '',
+                    isNameSubmitted: false,
+                    receipt: null,
                     userSelections: {},
-                    isNameSubmitted: false
+                    amountsOwed: null
                 }
             },
             methods: {
-                async fetchReceipt() {
-                    try {
-                        const response = await axios.get(`/api/receipt/${this.receiptId}`)
-                        this.receipt = response.data
-                        // Initialize userSelections if it's empty
-                        if (Object.keys(this.userSelections).length === 0) {
-                            this.receipt.items.forEach((item, index) => {
-                                this.userSelections[index] = false
-                            })
-                        }
-                    } catch (error) {
-                        console.error('Error fetching receipt:', error)
-                    }
-                },
                 submitName() {
                     if (this.userName.trim()) {
-                        this.isNameSubmitted = true
-                        this.fetchReceipt()
+                        this.isNameSubmitted = true;
+                        this.fetchReceipt();
                     }
                 },
-                toggleSelection(index) {
-                    this.userSelections[index] = !this.userSelections[index]
+                async fetchReceipt() {
+                    try {
+                        const response = await axios.get(`/api/receipt/${this.receiptId}`);
+                        this.receipt = response.data;
+                        this.initializeSelections();
+                    } catch (error) {
+                        console.error('Error fetching receipt:', error);
+                    }
+                },
+                initializeSelections() {
+                    this.receipt.items.forEach((item, index) => {
+                        this.$set(this.userSelections, index, 0);
+                    });
+                },
+                updateSelection(index) {
+                    if (this.userSelections[index] < 0) {
+                        this.userSelections[index] = 0;
+                    }
+                },
+                getSelectedBy(index) {
+                    const selections = this.receipt.selections[index] || {};
+                    return Object.entries(selections)
+                        .map(([user, quantity]) => `${user} (${quantity})`)
+                        .join(', ');
                 },
                 async submitSelections() {
                     try {
                         await axios.post(`/api/receipt/${this.receiptId}`, {
                             user: this.userName,
                             selections: this.userSelections
-                        })
-                        this.fetchReceipt()
-                    } catch (error) {
-                        console.error('Error submitting selections:', error)
-                    }
-                },
-                calculateAmountsOwed() {
-                    const amountsOwed = {};
-                    this.receipt.items.forEach((item, index) => {
-                        // const price = parseFloat(item.price.replace('$', ''));
-                        const price = parseFloat(item.total_price);
-                        const selectedBy = this.receipt.selections[index] || [];
-                        const splitAmount = price / selectedBy.length;
-
-                        selectedBy.forEach(user => {
-                            if (!amountsOwed[user]) {
-                                amountsOwed[user] = 0;
-                            }
-                            amountsOwed[user] += splitAmount;
                         });
-                    });
-
-                    // Round to two decimal places
-                    for (let user in amountsOwed) {
-                        amountsOwed[user] = amountsOwed[user].toFixed(2);
+                        this.fetchReceipt();
+                    } catch (error) {
+                        console.error('Error submitting selections:', error);
                     }
-
-                    return amountsOwed;
                 },
-                displayResults() {
-                    const amountsOwed = this.calculateAmountsOwed();
-                    let html = '<h3>Amounts Owed:</h3><ul>';
-                    for (const [user, amount] of Object.entries(amountsOwed)) {
-                        html += `<li>${user}: $${amount}</li>`;
+                async calculateAmountsOwed() {
+                    try {
+                        const response = await axios.get(`/api/calculate/${this.receiptId}`);
+                        this.amountsOwed = response.data;
+                    } catch (error) {
+                        console.error('Error calculating amounts:', error);
                     }
-                    html += '</ul>';
-                    document.getElementById('results').innerHTML = html;
                 }
             },
             mounted() {
-                // Remove the initial fetchReceipt call
-                setInterval(this.fetchReceipt, 5000) // Fetch updates every 5 seconds
-            },
-            template: {% raw %}`
-                <div v-if="!isNameSubmitted">
-                    <h2>Enter your name:</h2>
-                    <input v-model="userName" @keyup.enter="submitName">
-                    <button @click="submitName">Submit</button>
-                </div>
-                <div v-else-if="receipt">
-                    <h2>Your Name: {{ userName }}</h2>
-                    <h2>Receipt Items</h2>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Select</th>
-                                <th>Item</th>
-                                <th>Price</th>
-                                <th>Split Between</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="(item, index) in receipt.items" :key="index">
-                                <td><input type="checkbox" :checked="userSelections[index]" @change="toggleSelection(index)"></td>
-                                <td>{{ item.name }}</td>
-                                <td>{{ item.total_price }}</td>
-                                <td>{{ receipt.selections[index] ? receipt.selections[index].join(', ') : '' }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    <button @click="submitSelections">Submit Selections</button>
-                </div>
-                <div id="calculation-section" v-if="isNameSubmitted">
-                    <button id="calculate-button" @click="displayResults">Calculate Amounts Owed</button>
-                    <div id="results"></div>
-                </div>
-            `{% endraw %}
-        }
-
-        Vue.createApp({
-            components: {
-                ReceiptSplit
+                if (this.isNameSubmitted) {
+                    this.fetchReceipt();
+                }
             }
         }).mount('#app')
-
     </script>
 </body>
 </html>
