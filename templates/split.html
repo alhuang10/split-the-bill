@@ -86,34 +86,36 @@
                     isNameSubmitted: false,
                     receipt: null,
                     userSelections: {},
-                    amountsOwed: null
+                    amountsOwed: null,
+                    isSubmitting: false, // New data property to track submission state
                 }
             },
             methods: {
                 submitName() {
+                    console.log('submitName called');
                     if (this.userName.trim()) {
                         this.isNameSubmitted = true;
                         this.fetchReceipt();
                     }
                 },
                 async fetchReceipt() {
+                    console.log('fetchReceipt called');
                     try {
+                        console.time('fetchReceipt');
                         const response = await axios.get(`/api/receipt/${this.receiptId}`);
+                        console.timeEnd('fetchReceipt');
+                        console.log('Receipt data:', response.data);
                         this.receipt = response.data;
-                        this.initializeSelections();
                     } catch (error) {
                         console.error('Error fetching receipt:', error);
                     }
                 },
-                initializeSelections() {
-                    this.receipt.items.forEach((item, index) => {
-                        this.$set(this.userSelections, index, 0);
-                    });
-                },
                 updateSelection(index) {
+                    console.log(`updateSelection called for index ${index}`);
                     if (this.userSelections[index] < 0) {
                         this.userSelections[index] = 0;
                     }
+                    console.log('Updated selections:', this.userSelections);
                 },
                 getSelectedBy(index) {
                     const selections = this.receipt.selections[index] || {};
@@ -122,19 +124,34 @@
                         .join(', ');
                 },
                 async submitSelections() {
+                    console.log('submitSelections called');
+                    if (this.isSubmitting) {
+                        console.log('Submission already in progress, skipping');
+                        return;
+                    }
+                    this.isSubmitting = true;
                     try {
-                        await axios.post(`/api/receipt/${this.receiptId}`, {
+                        console.time('submitSelections');
+                        const response = await axios.post(`/api/receipt/${this.receiptId}`, {
                             user: this.userName,
                             selections: this.userSelections
                         });
-                        this.fetchReceipt();
+                        console.timeEnd('submitSelections');
+                        console.log('Submission response:', response.data);
+                        await this.fetchReceipt();
                     } catch (error) {
                         console.error('Error submitting selections:', error);
+                    } finally {
+                        this.isSubmitting = false;
                     }
                 },
                 async calculateAmountsOwed() {
+                    console.log('calculateAmountsOwed called');
                     try {
+                        console.time('calculateAmountsOwed');
                         const response = await axios.get(`/api/calculate/${this.receiptId}`);
+                        console.timeEnd('calculateAmountsOwed');
+                        console.log('Calculated amounts:', response.data);
                         this.amountsOwed = response.data;
                     } catch (error) {
                         console.error('Error calculating amounts:', error);
@@ -142,6 +159,7 @@
                 }
             },
             mounted() {
+                console.log('Component mounted');
                 if (this.isNameSubmitted) {
                     this.fetchReceipt();
                 }
