@@ -23,13 +23,44 @@
                 min-width: 640px; /* Adjust this value as needed */
             }
         }
+        .fancy-title {
+            background: linear-gradient(45deg, #4f46e5, #7c3aed);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+            display: inline-block;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .fancy-title::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: -10px;
+            height: 4px;
+            background: linear-gradient(45deg, #4f46e5, #7c3aed);
+            border-radius: 2px;
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
     <div id="app" v-cloak class="container mx-auto px-4 py-8">
-        <h1 class="text-3xl font-bold mb-8 text-center text-indigo-600">Split Receipt</h1>
+        <h1 class="text-5xl font-black mb-8 text-center fancy-title">Easy Split</h1>
         
         <div v-if="!isNameSubmitted" class="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
+
+            <div class="max-w-md mx-auto mb-6 bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded" role="alert">
+                <p class="mb-4">Share this page's URL with others to let them select their items:</p>
+                <div class="flex mb-2">
+                    <input type="text" :value="fullUrl" readonly class="flex-grow px-3 py-2 bg-white border rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500" ref="urlInput">
+                    <button @click="copyToClipboard" class="bg-blue-500 text-white px-4 py-2 rounded-r-md hover:bg-blue-600 transition duration-200">Copy</button>
+                </div>
+                <p v-if="copied" class="text-sm text-green-600">URL copied to clipboard!</p>
+            </div>
+
             <h2 class="text-xl font-semibold mb-4">Enter your name:</h2>
             <div class="flex">
                 <input v-model="userName" @keyup.enter="submitName" class="flex-grow px-3 py-2 border rounded-l-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -98,7 +129,13 @@
                     receipt: null,
                     userSelections: {},
                     amountsOwed: null,
-                    isSubmitting: false
+                    isSubmitting: false,
+                    copied: false
+                }
+            },
+            computed: {
+                fullUrl() {
+                    return `https://geteasysplit.com/split/${this.receiptId}`;
                 }
             },
             methods: {
@@ -171,6 +208,15 @@
                     } catch (error) {
                         console.error('Error calculating amounts:', error);
                     }
+                },
+                copyToClipboard() {
+                    const urlInput = this.$refs.urlInput;
+                    urlInput.select();
+                    document.execCommand('copy');
+                    this.copied = true;
+                    setTimeout(() => {
+                        this.copied = false;
+                    }, 2000);
                 }
             },
             watch: {

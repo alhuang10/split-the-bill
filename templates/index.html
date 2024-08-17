@@ -17,12 +17,48 @@
         .fade-enter-from, .fade-leave-to {
             opacity: 0;
         }
+        .fancy-title {
+            background: linear-gradient(45deg, #4f46e5, #7c3aed);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+            display: inline-block;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .fancy-title::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: -10px;
+            height: 4px;
+            background: linear-gradient(45deg, #4f46e5, #7c3aed);
+            border-radius: 2px;
+        }
+        .instructions-box {
+            background-color: rgba(229, 231, 235, 0.5); /* Light grey with 50% opacity */
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
     <div id="app" class="container mx-auto px-4 py-8">
-        <h1 class="text-3xl font-bold mb-8 text-center text-indigo-600">Easy Split</h1>
+        <h1 class="text-5xl font-black mb-8 text-center fancy-title">Easy Split</h1>
         
+        <div class="max-w-md mx-auto mb-8 instructions-box">
+            <ol class="list-decimal pl-6 space-y-2 text-gray-600">
+                <li>Upload your receipt to extract items and price.</li>
+                <li>Double check the results and edit as needed.</li>
+                <li>Create a unique link to send to people so they can mark what items they ordered. </li>
+                <li>Calculate what everyone owes you.</li>
+            </ol>
+        </div>
+
         <div class="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
             <form @submit.prevent="uploadFile" enctype="multipart/form-data">
                 <div class="mb-4">
