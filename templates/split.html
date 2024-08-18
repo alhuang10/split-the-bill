@@ -61,6 +61,11 @@
                 <p v-if="copied" class="text-sm text-green-600">URL copied to clipboard!</p>
             </div>
 
+            <div class="max-w-md mx-auto mb-6 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded" role="alert">
+                <p class="mb-1">If you were sent this link, enter your name and fill in which items you ordered on the next page!</p>
+                <p v-if="copied" class="text-sm text-green-600">URL copied to clipboard!</p>
+            </div>
+
             <h2 class="text-xl font-semibold mb-4">Enter your name:</h2>
             <div class="flex">
                 <input v-model="userName" @keyup.enter="submitName" class="flex-grow px-3 py-2 border rounded-l-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -107,8 +112,8 @@
             <div v-if="amountsOwed" class="mt-8 bg-white rounded-lg shadow-md p-6">
                 <h3 class="text-xl font-semibold mb-4">Amounts Owed:</h3>
                 <ul class="space-y-2">
-                    <li v-for="(amount, user) in amountsOwed" :key="user" class="flex justify-between items-center">
-                        <span class="font-medium">[[ user ]]</span>
+                    <li v-for="(amount, user) in amountsOwed" :key="user" class="flex items-center">
+                        <span class="font-medium mr-2">[[ user ]]:</span>
                         <span class="text-green-600 font-semibold">$[[ amount ]]</span>
                     </li>
                 </ul>
