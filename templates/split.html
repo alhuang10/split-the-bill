@@ -74,7 +74,7 @@
         </div>
         
         <div v-else>
-            <h2 class="text-2xl font-semibold mb-6">Welcome, [[ userName ]]</h2>
+            <h2 class="text-2xl font-semibold mb-6">Welcome, [[ userName ]]</h2>            
             <div v-if="receipt" class="bg-white rounded-lg shadow-md overflow-hidden table-container">
                 <table class="w-full receipt-table">
                     <thead class="bg-gray-50">
@@ -104,6 +104,22 @@
                 </table>
             </div>
             
+            <div class="mb-6 bg-white rounded-lg shadow-md p-4">
+                <h3 class="text-lg font-semibold mb-2">Scaling Factors</h3>
+                <div class="flex space-x-4">
+                    <div class="flex-1">
+                        <label for="taxTipFactor" class="block text-sm font-medium text-gray-700">Tax & Tip Factor:</label>
+                        <input type="number" id="taxTipFactor" v-model.number="taxTipFactor" step="0.01" min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                        <p class="mt-1 text-sm text-gray-500">E.g., 1.20 for 20% tax and tip</p>
+                    </div>
+                    <div class="flex-1">
+                        <label for="currencyFactor" class="block text-sm font-medium text-gray-700">Currency Conversion Factor:</label>
+                        <input type="number" id="currencyFactor" v-model.number="currencyFactor" step="0.01" min="0" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                        <p class="mt-1 text-sm text-gray-500">E.g., 1.35 for USD to EUR</p>
+                    </div>
+                </div>
+            </div>
+
             <div class="mt-6 flex justify-center space-x-4">
                 <button @click="submitSelections" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded transition duration-200">Submit Selections</button>
                 <button @click="calculateAmountsOwed" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition duration-200">Calculate Amounts Owed</button>
@@ -112,9 +128,9 @@
             <div v-if="amountsOwed" class="mt-8 bg-white rounded-lg shadow-md p-6">
                 <h3 class="text-xl font-semibold mb-4">Amounts Owed:</h3>
                 <ul class="space-y-2">
-                    <li v-for="(amount, user) in amountsOwed" :key="user" class="flex items-center">
+                    <li v-for="(amount, user) in scaledAmountsOwed" :key="user" class="flex items-center">
                         <span class="font-medium mr-2">[[ user ]]:</span>
-                        <span class="text-green-600 font-semibold">$[[ amount ]]</span>
+                        <span class="text-green-600 font-semibold">$[[ amount.toFixed(2) ]]</span>
                     </li>
                 </ul>
             </div>
@@ -135,12 +151,22 @@
                     userSelections: {},
                     amountsOwed: null,
                     isSubmitting: false,
-                    copied: false
+                    copied: false,
+                    taxTipFactor: 1.0,
+                    currencyFactor: 1.0
                 }
             },
             computed: {
                 fullUrl() {
                     return `https://www.geteasysplit.com/split/${this.receiptId}`;
+                },
+                scaledAmountsOwed() {
+                    if (!this.amountsOwed) return null;
+                    const scaledAmounts = {};
+                    for (const [user, amount] of Object.entries(this.amountsOwed)) {
+                        scaledAmounts[user] = Number((amount * this.taxTipFactor * this.currencyFactor).toFixed(2));
+                    }
+                    return scaledAmounts;
                 }
             },
             methods: {
@@ -230,6 +256,12 @@
                     handler(newReceipt) {
                         console.log('Receipt changed:', newReceipt);
                     }
+                },
+                taxTipFactor(newValue) {
+                    console.log('Tax & Tip Factor changed:', newValue);
+                },
+                currencyFactor(newValue) {
+                    console.log('Currency Conversion Factor changed:', newValue);
                 }
             },
             mounted() {
